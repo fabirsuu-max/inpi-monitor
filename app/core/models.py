@@ -49,7 +49,23 @@ class Processo:
 @dataclass
 class MarcaMonitorada:
     id: Optional[int]
-    termo: str
-    tipo_busca: str  # "nome", "titular", "regex"
+    termo: str          # label de exibição, gerado automaticamente
+    tipo_busca: str     # mantido para compatibilidade; use criterios para lógica
+    criterios: dict = field(default_factory=dict)  # kwargs para filtrar()
     observacao: str = ""
     ativo: bool = True
+
+    def label(self) -> str:
+        """Texto curto para exibir na lista."""
+        if self.observacao:
+            return self.observacao
+        if self.criterios:
+            partes = []
+            for k, v in self.criterios.items():
+                if k == "use_regex":
+                    continue
+                partes.append(f"{k}:{v}")
+            if self.criterios.get("use_regex"):
+                partes.append("regex")
+            return ", ".join(partes)
+        return self.termo

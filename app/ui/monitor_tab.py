@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QGroupBox,
     QListWidget, QListWidgetItem, QComboBox,
     QTextEdit, QMessageBox, QDialog, QDialogButtonBox,
-    QFormLayout, QCheckBox, QProgressBar
+    QFormLayout, QCheckBox, QProgressBar, QGridLayout
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from core import database, xml_parser
@@ -28,17 +28,11 @@ class MonitorWorker(QObject):
         for i, marca in enumerate(self.marcas):
             self.progresso.emit(i + 1, total)
             try:
-                kwargs = {"use_regex": marca.tipo_busca == "regex"}
-                if marca.tipo_busca in ("nome", "regex"):
-                    kwargs["nome"] = marca.termo
-                elif marca.tipo_busca == "titular":
-                    kwargs["titular"] = marca.termo
-
-                resultados = xml_parser.filtrar(self.processos, **kwargs)
+                resultados = xml_parser.filtrar(self.processos, **marca.criterios)
                 database.salvar_historico(marca.id, resultados)
                 self.resultado.emit(marca.id, resultados)
             except Exception as e:
-                self.error.emit(f"Erro ao verificar '{marca.termo}': {e}")
+                self.error.emit(f"Erro ao verificar '{marca.label()}': {e}")
         self.finalizado.emit()
 
 
@@ -46,37 +40,103 @@ class AdicionarDialog(QDialog):
     def __init__(self, marca: MarcaMonitorada = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Adicionar Monitoramento" if not marca else "Editar Monitoramento")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(480)
         self._setup_ui(marca)
 
     def _setup_ui(self, marca):
         layout = QVBoxLayout(self)
-        form = QFormLayout()
 
-        self.inp_termo = QLineEdit()
-        self.inp_termo.setPlaceholderText("Termo a monitorar")
+        # Syntax hint banner
+        hint = QLabel(
+            "<b>Operadores:</b> "
+            "use <b>OR</b> para alternativas dentro do campo "
+            "<i>(ex: MRC OR NRC OR BRC)</i> &nbsp;·&nbsp; "
+            "use <b>AND</b> para exigir múltiplos termos "
+            "<i>(ex: TECH AND BR)</i><br>"
+            "Campos diferentes são sempre combinados com <b>AND</b> entre si."
+        )
+        hint.setStyleSheet(
+            "background:#e8f4fd; border:1px solid #bee5eb; "
+            "padding:6px; border-radius:4px; color:#0c5460;"
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
 
-        self.cmb_tipo = QComboBox()
-        self.cmb_tipo.addItems(["nome", "titular", "regex"])
+        # Criteria group
+        grp = QGroupBox("Critérios de Busca")
+        grid = QGridLayout(grp)
+        grid.setSpacing(8)
 
+        self.inp_nome = QLineEdit()
+        self.inp_nome.setPlaceholderText("Ex: MRC OR NRC OR BRC")
+
+        self.inp_titular = QLineEdit()
+        self.inp_titular.setPlaceholderText("Ex: EMPRESA LTDA  ou  LTDA OR SA")
+
+        self.inp_numero = QLineEdit()
+        self.inp_numero.setPlaceholderText("Ex: 912345678  ou  9123 OR 9124")
+
+        self.inp_classe = QLineEdit()
+        self.inp_classe.setPlaceholderText("Ex: 35 OR 42")
+
+        self.inp_desp_cod = QLineEdit()
+        self.inp_desp_cod.setPlaceholderText("Ex: IPAS009  ou  IPAS009 OR IPAS044")
+
+        self.inp_desp_nome = QLineEdit()
+        self.inp_desp_nome.setPlaceholderText("Ex: Registro concedido")
+
+        self.inp_natureza = QLineEdit()
+        self.inp_natureza.setPlaceholderText("Ex: De Produto OR De Serviço")
+
+        self.inp_apresentacao = QLineEdit()
+        self.inp_apresentacao.setPlaceholderText("Ex: Nominativa OR Mista")
+
+        self.chk_regex = QCheckBox("Tratar campo Nome como expressão regular (regex)")
+
+        grid.addWidget(QLabel("Nome da marca:"), 0, 0)
+        grid.addWidget(self.inp_nome, 0, 1)
+        grid.addWidget(QLabel("Titular:"), 1, 0)
+        grid.addWidget(self.inp_titular, 1, 1)
+        grid.addWidget(QLabel("Nº Processo:"), 2, 0)
+        grid.addWidget(self.inp_numero, 2, 1)
+        grid.addWidget(QLabel("Classe Nice:"), 3, 0)
+        grid.addWidget(self.inp_classe, 3, 1)
+        grid.addWidget(QLabel("Cód. Despacho:"), 4, 0)
+        grid.addWidget(self.inp_desp_cod, 4, 1)
+        grid.addWidget(QLabel("Nome Despacho:"), 5, 0)
+        grid.addWidget(self.inp_desp_nome, 5, 1)
+        grid.addWidget(QLabel("Natureza:"), 6, 0)
+        grid.addWidget(self.inp_natureza, 6, 1)
+        grid.addWidget(QLabel("Apresentação:"), 7, 0)
+        grid.addWidget(self.inp_apresentacao, 7, 1)
+        grid.addWidget(self.chk_regex, 8, 0, 1, 2)
+
+        layout.addWidget(grp)
+
+        # Metadata
+        meta = QFormLayout()
         self.inp_obs = QLineEdit()
-        self.inp_obs.setPlaceholderText("Observação opcional")
-
+        self.inp_obs.setPlaceholderText("Nome ou descrição para identificar este monitoramento")
         self.chk_ativo = QCheckBox("Ativo")
         self.chk_ativo.setChecked(True)
+        meta.addRow("Observação:", self.inp_obs)
+        meta.addRow("", self.chk_ativo)
+        layout.addLayout(meta)
 
-        form.addRow("Termo:", self.inp_termo)
-        form.addRow("Tipo de busca:", self.cmb_tipo)
-        form.addRow("Observação:", self.inp_obs)
-        form.addRow("", self.chk_ativo)
-
+        # Populate when editing
         if marca:
-            self.inp_termo.setText(marca.termo)
-            self.cmb_tipo.setCurrentText(marca.tipo_busca)
+            c = marca.criterios
+            self.inp_nome.setText(c.get("nome", ""))
+            self.inp_titular.setText(c.get("titular", ""))
+            self.inp_numero.setText(c.get("numero", ""))
+            self.inp_classe.setText(c.get("classe_nice", ""))
+            self.inp_desp_cod.setText(c.get("despacho_codigo", ""))
+            self.inp_desp_nome.setText(c.get("despacho_nome", ""))
+            self.inp_natureza.setText(c.get("natureza", ""))
+            self.inp_apresentacao.setText(c.get("apresentacao", ""))
+            self.chk_regex.setChecked(bool(c.get("use_regex", False)))
             self.inp_obs.setText(marca.observacao)
             self.chk_ativo.setChecked(marca.ativo)
-
-        layout.addLayout(form)
 
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -85,17 +145,54 @@ class AdicionarDialog(QDialog):
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
 
+    def _get_criterios(self) -> dict:
+        c = {}
+        if v := self.inp_nome.text().strip():
+            c["nome"] = v
+        if v := self.inp_titular.text().strip():
+            c["titular"] = v
+        if v := self.inp_numero.text().strip():
+            c["numero"] = v
+        if v := self.inp_classe.text().strip():
+            c["classe_nice"] = v
+        if v := self.inp_desp_cod.text().strip():
+            c["despacho_codigo"] = v
+        if v := self.inp_desp_nome.text().strip():
+            c["despacho_nome"] = v
+        if v := self.inp_natureza.text().strip():
+            c["natureza"] = v
+        if v := self.inp_apresentacao.text().strip():
+            c["apresentacao"] = v
+        if self.chk_regex.isChecked():
+            c["use_regex"] = True
+        return c
+
     def _validar(self):
-        if not self.inp_termo.text().strip():
-            QMessageBox.warning(self, "Aviso", "Informe o termo a monitorar.")
+        c = self._get_criterios()
+        # Remove use_regex for the "has criteria" check
+        has = any(k != "use_regex" for k in c)
+        if not has:
+            QMessageBox.warning(self, "Aviso", "Preencha ao menos um critério de busca.")
             return
         self.accept()
 
     def get_marca(self) -> MarcaMonitorada:
+        criterios = self._get_criterios()
+        # Build a label from criteria for display
+        partes = []
+        for k, v in criterios.items():
+            if k == "use_regex":
+                continue
+            partes.append(f"{k}:{v}")
+        if criterios.get("use_regex"):
+            partes.append("regex")
+        termo = ", ".join(partes)
+
         return MarcaMonitorada(
             id=None,
-            termo=self.inp_termo.text().strip(),
-            tipo_busca=self.cmb_tipo.currentText(),
+            termo=termo,
+            tipo_busca="combinada",
+            criterios=criterios,
             observacao=self.inp_obs.text().strip(),
             ativo=self.chk_ativo.isChecked(),
         )
@@ -201,7 +298,7 @@ class MonitorTab(QWidget):
         self.lista.clear()
         for m in self._marcas:
             status = "✓" if m.ativo else "✗"
-            item = QListWidgetItem(f"{status} [{m.tipo_busca}] {m.termo}")
+            item = QListWidgetItem(f"{status} {m.label()}")
             item.setData(Qt.ItemDataRole.UserRole, m.id)
             self.lista.addItem(item)
 
@@ -213,22 +310,22 @@ class MonitorTab(QWidget):
 
         if has and row < len(self._marcas):
             marca = self._marcas[row]
-            self.lbl_resultado.setText(f"Resultados: {marca.termo} [{marca.tipo_busca}]")
+            self.lbl_resultado.setText(f"Resultados: {marca.label()}")
             processos = self._resultados.get(marca.id, [])
             self.table.carregar(processos)
             n = len(processos)
             if n:
-                self.status_message.emit(f"{n} resultado(s) para '{marca.termo}'")
+                self.status_message.emit(f"{n} resultado(s) para '{marca.label()}'")
             else:
-                self.status_message.emit(f"Clique em 'Verificar' para buscar '{marca.termo}'")
+                self.status_message.emit(f"Clique em 'Verificar' para buscar '{marca.label()}'")
 
     def _adicionar(self):
         dlg = AdicionarDialog(parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             marca = dlg.get_marca()
-            new_id = database.adicionar_monitorada(marca)
+            database.adicionar_monitorada(marca)
             self._carregar_lista()
-            self.status_message.emit(f"Adicionado: {marca.termo}")
+            self.status_message.emit(f"Adicionado: {marca.label()}")
 
     def _editar(self):
         row = self.lista.currentRow()
@@ -249,7 +346,7 @@ class MonitorTab(QWidget):
         marca = self._marcas[row]
         resp = QMessageBox.question(
             self, "Confirmar",
-            f"Remover '{marca.termo}' do monitoramento?\nO histórico também será apagado.",
+            f"Remover '{marca.label()}' do monitoramento?\nO histórico também será apagado.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if resp == QMessageBox.StandardButton.Yes:

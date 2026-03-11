@@ -105,11 +105,16 @@ class OnlineTab(QWidget):
         self.btn_prox.setEnabled(False)
         self.btn_prox.clicked.connect(self._proxima_pagina)
 
+        self.btn_limpar = QPushButton("Limpar")
+        self.btn_limpar.setFixedHeight(32)
+        self.btn_limpar.clicked.connect(self._limpar)
+
         self.lbl_total = QLabel("")
         self.lbl_total.setStyleSheet("color: #0066cc; font-weight: bold;")
 
         btn_row.addWidget(self.btn_buscar)
         btn_row.addWidget(self.btn_prox)
+        btn_row.addWidget(self.btn_limpar)
         btn_row.addStretch()
         btn_row.addWidget(self.lbl_total)
         grid.addLayout(btn_row, 3, 0, 1, 4)
@@ -166,8 +171,9 @@ class OnlineTab(QWidget):
         self.progress.setVisible(False)
         self.table.carregar(processos)
         n = len(processos)
-        self.lbl_total.setText(f"{n} resultado(s) (total estimado: {total})")
-        self.btn_prox.setEnabled(n > 0)
+        pagina_atual = self.spn_pagina.value()
+        self.lbl_total.setText(f"{n} resultado(s) — Página {pagina_atual}/{total}")
+        self.btn_prox.setEnabled(n > 0 and pagina_atual < total)
         self.status_message.emit(f"Busca online: {n} resultado(s)")
 
     def _on_erro(self, msg: str):
@@ -180,6 +186,15 @@ class OnlineTab(QWidget):
             "Verifique sua conexão com a internet."
         )
         self.status_message.emit("Erro na busca online")
+
+    def _limpar(self):
+        for inp in [self.inp_nome, self.inp_titular, self.inp_numero, self.inp_classe]:
+            inp.clear()
+        self.spn_pagina.setValue(1)
+        self.table.carregar([])
+        self.lbl_total.setText("")
+        self.btn_prox.setEnabled(False)
+        self.status_message.emit("")
 
     def _ver_detalhe(self, processo: Processo):
         dlg = DetalheDialog(processo, self)

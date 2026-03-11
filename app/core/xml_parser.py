@@ -78,9 +78,34 @@ def _parse_processo(elem) -> Processo:
     return p
 
 
+def _build_match_fn(value_str: str, use_regex: bool):
+    """
+    Build a match function for a field value.
+    Supports OR / AND operators between terms (case-insensitive keywords).
+    With use_regex=True the whole value is compiled as a regex (OR/AND ignored).
+    """
+    if use_regex:
+        try:
+            pattern = re.compile(value_str, re.IGNORECASE)
+            return lambda s, p=pattern: bool(p.search(s))
+        except re.error:
+            pass  # fall through to literal match
+
+    if re.search(r'\bOR\b', value_str, re.IGNORECASE):
+        tokens = [t.strip() for t in re.split(r'\bOR\b', value_str, flags=re.IGNORECASE) if t.strip()]
+        return lambda s, toks=tokens: any(t.lower() in s.lower() for t in toks)
+
+    if re.search(r'\bAND\b', value_str, re.IGNORECASE):
+        tokens = [t.strip() for t in re.split(r'\bAND\b', value_str, flags=re.IGNORECASE) if t.strip()]
+        return lambda s, toks=tokens: all(t.lower() in s.lower() for t in toks)
+
+    return lambda s, v=value_str: v.lower() in s.lower()
+
+
 def filtrar(processos: list[Processo], **kwargs) -> list[Processo]:
     """
-    Filter list of Processo by criteria.
+    Filter list of Processo by criteria (all fields combined with AND).
+    Within each field supports OR / AND operators between terms.
     Supports: nome, titular, classe_nice, despacho_codigo, despacho_nome,
               apresentacao, natureza, numero, use_regex (bool)
     """
@@ -94,14 +119,7 @@ def filtrar(processos: list[Processo], **kwargs) -> list[Processo]:
         if not value_str:
             continue
 
-        if use_regex:
-            try:
-                pattern = re.compile(value_str, re.IGNORECASE)
-                match_fn = lambda s, p=pattern: bool(p.search(s))
-            except re.error:
-                match_fn = lambda s, v=value_str: v.lower() in s.lower()
-        else:
-            match_fn = lambda s, v=value_str: v.lower() in s.lower()
+        match_fn = _build_match_fn(value_str, use_regex)
 
         if field == "nome":
             results = [p for p in results if match_fn(p.marca_nome)]
