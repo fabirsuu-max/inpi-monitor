@@ -1,0 +1,7 @@
+Incluir
+
+MONITORAMENTO
+No cadastro de marcas monitoradas, precisa constar alem do nome, o numero do protocolo e o numero do processo, pois alem de buscar pelo nome preciso localizar tambem por esses numeros. Alem disso vi que voce incluiu a opcao de tipo de busca contendo nome, titular e regex. Na verdade eu preciso que permita varios tipos de buscas ao mesmo tempo. Exemplo: posso escolher procurar uma palavra no nome, posso querer buscar por um titular especifico, posso querer buscar por algumas palavras similares ao nome da minha marca para proteger a fonetica. Tudo isso precisa ser do tipo AND ou OR. em relacao as palavras chaves, quando eu busco por nomes similares, normalmente crio um regex manualmente para tratar a mesma letra com e sem acentos. Se voce conseguir converter as minhas palavras chaves tambem em algo que busque independente da acentuacao seria bom. Nessa tela e isso. Vi que voce nao incluiu no cadastro das marcas monitoradas algumas informacoes que estao na planilha como por exemplo: data da concessao, data do vencimento da marca, data do vencimento dos meus honorarios e etc. Consulte os demais campos na planilha.
+
+PESQUISA XML
+As mesmas implementacoes de busca feitas no monitoramento devem existir na pesquisa do xml.

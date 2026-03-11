@@ -1,0 +1,32 @@
+# Dados locais (arquivos grandes - baixe separadamente se necessário)
+*.pdf
+*.xml
+*.xlsm
+
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+wheels/
+
+# IDE / editor
+.claude/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dados e logs da aplicação
+app/data/
+app/logs/
+
+# Obsidian (notas locais)
+inpi/.obsidian/
+
+# OS
+.DS_Store
+Thumbs.db
